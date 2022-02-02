@@ -97,13 +97,72 @@ public class LinearGradientView extends View {
         drawGradient();
     }
 
-    private float[] calculateGradientLocationWithAngle(float angle) {
-        float angleRad = (angle - 90.0f) * ((float)Math.PI / 180.0f);
-        float length = (float)Math.sqrt(2.0);
+    private float[][] calculateGradientLocationWithAngle(float angle) {
+        angle = angle % 360f;
+        if (angle < 0f)
+            angle += 360f;
 
-        return new float[]{
-                (float) Math.cos(angleRad) * length,
-                (float) Math.sin(angleRad) * length
+        if (angle == 0f) {
+            return new float[][] { 
+                new float[] { 0f, mSize[1] },
+                new float[] { 0f, 0f }
+            };
+        }
+
+        if (angle == 90f) {
+            return new float[][] { 
+                new float[] { 0f, 0f },
+                new float[] { mSize[0], 0f }
+            };
+        }
+
+        if (angle == 180f) {
+            return new float[][] { 
+                new float[] { 0f, 0f },
+                new float[] { 0f, mSize[1] }
+            };
+        }
+
+        if (angle == 270f) {
+            return new float[][] { 
+                new float[] { mSize[0], 0f },
+                new float[] { 0f, 0f }
+            };
+        }
+
+        // angleDeg is a "bearing angle" (0deg = N, 90deg = E),
+        // but tan expects 0deg = E, 90deg = N.
+        float slope = (float)Math.tan((90 - angle) * Math.PI / 180.0f);
+
+        // We find the endpoint by computing the intersection of the line formed by
+        // the slope, and a line perpendicular to it that intersects the corner.
+        float perpendicularSlope = -1 / slope;
+
+        // Compute start corner relative to center, in Cartesian space (+y = up).
+        float halfWidth = mSize[0] / 2;
+        float halfHeight = mSize[1] / 2;
+        float[] endCorner;
+        if (angle < 90f) {
+            endCorner = new float[] { halfWidth, halfHeight };
+        } else if (angle < 180f) {
+            endCorner = new float[] { halfWidth, -halfHeight };
+        } else if (angle < 270f) {
+            endCorner = new float[] { -halfWidth, -halfHeight };
+        } else {
+            endCorner = new float[] { -halfWidth, halfHeight };
+        }
+
+        // Compute c (of y = mx + c) using the corner point.
+        float c = endCorner[1] - perpendicularSlope * endCorner[0];
+        float endX = c / (slope - perpendicularSlope);
+        float endY = perpendicularSlope * endX + c;
+
+        // We computed the end point, so set the second point, taking into account the
+        // moved origin and the fact that we're in drawing space (+y = down).
+        // Reflect around the center for the start point.
+        return new float[][] {
+            new float[] { halfWidth + endX, halfHeight - endY },
+            new float[] { halfWidth - endX, halfHeight + endY }
         };
     }
 
@@ -112,26 +171,23 @@ public class LinearGradientView extends View {
         if (mColors == null || (mLocations != null && mColors.length != mLocations.length))
             return;
 
-        float[] startPos = mStartPos;
-        float[] endPos = mEndPos;
+        float[] startPos;
+        float[] endPos;
 
         if (mUseAngle && mAngleCenter != null) {
-            float[] angleSize = calculateGradientLocationWithAngle(mAngle);
-            startPos = new float[]{
-                    mAngleCenter[0] - angleSize[0] / 2.0f,
-                    mAngleCenter[1] - angleSize[1] / 2.0f
-            };
-            endPos = new float[]{
-                    mAngleCenter[0] + angleSize[0] / 2.0f,
-                    mAngleCenter[1] + angleSize[1] / 2.0f
-            };
+            float[][] positions = calculateGradientLocationWithAngle(mAngle);
+            startPos = positions[0];
+            endPos = positions[1];
+        } else {
+            startPos = new float[] { mStartPos[0] * mSize[0], mStartPos[1] * mSize[1] };
+            endPos = new float[] { mEndPos[0] * mSize[0], mEndPos[1] * mSize[1] };
         }
 
         mShader = new LinearGradient(
-                startPos[0] * mSize[0],
-                startPos[1] * mSize[1],
-                endPos[0] * mSize[0],
-                endPos[1] * mSize[1],
+                startPos[0],
+                startPos[1],
+                endPos[0],
+                endPos[1],
             mColors,
             mLocations,
             Shader.TileMode.CLAMP);
