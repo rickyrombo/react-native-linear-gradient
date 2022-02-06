@@ -1,5 +1,6 @@
 #import "BVLinearGradientLayer.h"
 
+#include <math.h>
 #import <UIKit/UIKit.h>
 
 @implementation BVLinearGradientLayer
@@ -83,70 +84,101 @@
     [self setNeedsDisplay];
 }
 
-- (CGPoint)calculateGradientLocationWithAngle:(CGFloat)angle
+// This method is adapted and ported from the Chromium implementation:
+// https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/css/css_gradient_value.cc;l=883-952;drc=919811d4a39a74216d96d1f1c346efef3ef85e85
+/*
+ * Copyright (C) 2008 Apple Inc.  All rights reserved.
+ * Copyright (C) 2015 Google Inc. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
+ * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+ * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+ * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ */
+- (NSArray *)endPointsFromAngle:(CGFloat)angle
+{
     CGSize size = self.bounds.size;
     angle = fmodf(angle, 360);
     if (angle < 0)
         angle += 360;
 
+    // Avoid undefined slopes
     if (angle == 0) {
-        firstPoint = CGPointMake(0, size.height);
-        secondPoint = CGPointMake(0, 0);
-        return;
+        return @[
+            [NSValue valueWithCGPoint:CGPointMake(0, size.height)],
+            [NSValue valueWithCGPoint:CGPointMake(0, 0)]
+        ];
     }
 
     if (angle == 90) {
-        firstPoint = CGPointMake(0, 0);
-        secondPoint = CGPointMake(size.width, 0);
-        return;
+        return @[
+            [NSValue valueWithCGPoint:CGPointMake(0, 0)],
+            [NSValue valueWithCGPoint:CGPointMake(size.width, 0)]
+        ];
     }
 
     if (angle == 180) {
-        firstPoint = CGPointMake(0, 0);
-        secondPoint = CGPointMake(0, size.height);
-        return;
+        return @[
+            [NSValue valueWithCGPoint:CGPointMake(0, 0)],
+            [NSValue valueWithCGPoint:CGPointMake(0, size.height)]
+        ];
     }
 
     if (angle == 270) {
-        firstPoint = CGPointMake(size.width, 0);
-        secondPoint = CGPointMake(0, 0);
-        return;
+        return @[
+            [NSValue valueWithCGPoint:CGPointMake(size.width, 0)],
+            [NSValue valueWithCGPoint:CGPointMake(0, 0)]
+        ];
     }
 
     // angleDeg is a "bearing angle" (0deg = N, 90deg = E),
     // but tan expects 0deg = E, 90deg = N.
-    float slope = tan(Deg2rad(90 - angle_deg));
+    float slope = tan((90 - angle) * M_PI / 180.0);
 
     // We find the endpoint by computing the intersection of the line formed by
     // the slope, and a line perpendicular to it that intersects the corner.
-    float perpendicular_slope = -1 / slope;
+    float perpendicularSlope = -1 / slope;
 
     // Compute start corner relative to center, in Cartesian space (+y = up).
-    float half_height = size.height / 2f;
-    float half_width = size.width / 2f;
-    gfx::PointF end_corner;
-    if (angle_deg < 90)
-        end_corner.SetPoint(half_width, half_height);
-    else if (angle_deg < 180)
-        end_corner.SetPoint(half_width, -half_height);
-    else if (angle_deg < 270)
-        end_corner.SetPoint(-half_width, -half_height);
+    float halfHeight = size.height / 2.0;
+    float halfWidth = size.width / 2.0;
+    CGPoint endCorner;
+    if (angle < 90)
+        endCorner = CGPointMake(halfWidth, halfHeight);
+    else if (angle < 180)
+        endCorner = CGPointMake(halfWidth, -halfHeight);
+    else if (angle < 270)
+        endCorner = CGPointMake(-halfWidth, -halfHeight);
     else
-        end_corner.SetPoint(-half_width, half_height);
+        endCorner = CGPointMake(-halfWidth, halfHeight);
 
     // Compute c (of y = mx + c) using the corner point.
-    float c = end_corner.y() - perpendicularSlope * end_corner.x();
+    float c = endCorner.y - perpendicularSlope * endCorner.x;
     float endX = c / (slope - perpendicularSlope);
     float endY = perpendicularSlope * endX + c;
 
-    return CGPointMake(endX, endY)
-
-    // We computed the end point, so set the second point, taking into account the
-    // moved origin and the fact that we're in drawing space (+y = down).
-    second_point.SetPoint(half_width + end_x, half_height - end_y);
-    // Reflect around the center for the start point.
-    first_point.SetPoint(half_width - end_x, half_height + end_y);
-    return CGSizeMake(cos(angleRad) * length, sin(angleRad) * length);
+    // Translate the end point around the angle center, and relect across to get the start point
+    CGPoint angleCenterReal = CGPointMake(_angleCenter.x * size.width, _angleCenter.y * size.height);
+    return @[
+        [NSValue valueWithCGPoint:CGPointMake(angleCenterReal.x + endX, angleCenterReal.y - endY)],
+        [NSValue valueWithCGPoint:CGPointMake(angleCenterReal.x - endX, angleCenterReal.y + endY)]
+    ];
 }
     
 - (void)drawInContext:(CGContextRef)ctx
@@ -186,20 +218,23 @@
 
     free(locations);
 
-    CGPoint start = self.startPoint, end = self.endPoint;
+    CGPoint start, end;
     
     if (_useAngle)
     {
-        CGSize size = [self calculateGradientLocationWithAngle:_angle];
-        start.x = _angleCenter.x - size.width / 2;
-        start.y = _angleCenter.y - size.height / 2;
-        end.x = _angleCenter.x + size.width / 2;
-        end.y = _angleCenter.y + size.height / 2;
+        NSArray<NSValue *> *anglePoints = [self endPointsFromAngle:_angle];
+        start = anglePoints[0].CGPointValue;
+        end = anglePoints[1].CGPointValue;
+    }
+    else
+    {
+        start = CGPointMake(self.startPoint.x * size.width, self.startPoint.y * size.height);
+        end = CGPointMake(self.endPoint.x * size.width, self.endPoint.y * size.height);
     }
     
     CGContextDrawLinearGradient(ctx, gradient,
-                                CGPointMake(start.x * size.width, start.y * size.height),
-                                CGPointMake(end.x * size.width, end.y * size.height),
+                                start,
+                                end,
                                 kCGGradientDrawsBeforeStartLocation | kCGGradientDrawsAfterEndLocation);
     CGGradientRelease(gradient);
     CGColorSpaceRelease(colorSpace);
