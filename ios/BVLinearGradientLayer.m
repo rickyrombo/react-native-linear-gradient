@@ -176,8 +176,8 @@
     // Translate the end point around the angle center, and relect across to get the start point
     CGPoint angleCenterReal = CGPointMake(_angleCenter.x * size.width, _angleCenter.y * size.height);
     return @[
-        [NSValue valueWithCGPoint:CGPointMake(angleCenterReal.x + endX, angleCenterReal.y - endY)],
-        [NSValue valueWithCGPoint:CGPointMake(angleCenterReal.x - endX, angleCenterReal.y + endY)]
+        [NSValue valueWithCGPoint:CGPointMake(angleCenterReal.x - endX, angleCenterReal.y + endY)],
+        [NSValue valueWithCGPoint:CGPointMake(angleCenterReal.x + endX, angleCenterReal.y - endY)]
     ];
 }
     

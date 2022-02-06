@@ -189,8 +189,8 @@ public class LinearGradientView extends View {
         float centerX = mAngleCenter[0] * mSize[0];
         float centerY = mAngleCenter[1] * mSize[1];
         return new float[][] {
-            new float[] { centerX + endX, centerY - endY },
-            new float[] { centerX - endX, centerY + endY }
+            new float[] { centerX - endX, centerY + endY },
+            new float[] { centerX + endX, centerY - endY }
         };
     }
 
