@@ -160,9 +160,11 @@ public class LinearGradientView extends View {
         // We computed the end point, so set the second point, taking into account the
         // moved origin and the fact that we're in drawing space (+y = down).
         // Reflect around the center for the start point.
+        float centerX = mAngleCenter[0] * mSize[0];
+        float centerY = mAngleCenter[1] * mSize[1];
         return new float[][] {
-            new float[] { halfWidth + endX, halfHeight - endY },
-            new float[] { halfWidth - endX, halfHeight + endY }
+            new float[] { centerX + endX, centerY - endY },
+            new float[] { centerX - endX, centerY + endY }
         };
     }
 
