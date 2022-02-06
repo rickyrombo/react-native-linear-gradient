@@ -83,11 +83,69 @@
     [self setNeedsDisplay];
 }
 
-- (CGSize)calculateGradientLocationWithAngle:(CGFloat)angle
-{
-    CGFloat angleRad = (angle - 90) * (M_PI / 180);
-    CGFloat length = sqrt(2);
-    
+- (CGPoint)calculateGradientLocationWithAngle:(CGFloat)angle
+    CGSize size = self.bounds.size;
+    angle = fmodf(angle, 360);
+    if (angle < 0)
+        angle += 360;
+
+    if (angle == 0) {
+        firstPoint = CGPointMake(0, size.height);
+        secondPoint = CGPointMake(0, 0);
+        return;
+    }
+
+    if (angle == 90) {
+        firstPoint = CGPointMake(0, 0);
+        secondPoint = CGPointMake(size.width, 0);
+        return;
+    }
+
+    if (angle == 180) {
+        firstPoint = CGPointMake(0, 0);
+        secondPoint = CGPointMake(0, size.height);
+        return;
+    }
+
+    if (angle == 270) {
+        firstPoint = CGPointMake(size.width, 0);
+        secondPoint = CGPointMake(0, 0);
+        return;
+    }
+
+    // angleDeg is a "bearing angle" (0deg = N, 90deg = E),
+    // but tan expects 0deg = E, 90deg = N.
+    float slope = tan(Deg2rad(90 - angle_deg));
+
+    // We find the endpoint by computing the intersection of the line formed by
+    // the slope, and a line perpendicular to it that intersects the corner.
+    float perpendicular_slope = -1 / slope;
+
+    // Compute start corner relative to center, in Cartesian space (+y = up).
+    float half_height = size.height / 2f;
+    float half_width = size.width / 2f;
+    gfx::PointF end_corner;
+    if (angle_deg < 90)
+        end_corner.SetPoint(half_width, half_height);
+    else if (angle_deg < 180)
+        end_corner.SetPoint(half_width, -half_height);
+    else if (angle_deg < 270)
+        end_corner.SetPoint(-half_width, -half_height);
+    else
+        end_corner.SetPoint(-half_width, half_height);
+
+    // Compute c (of y = mx + c) using the corner point.
+    float c = end_corner.y() - perpendicularSlope * end_corner.x();
+    float endX = c / (slope - perpendicularSlope);
+    float endY = perpendicularSlope * endX + c;
+
+    return CGPointMake(endX, endY)
+
+    // We computed the end point, so set the second point, taking into account the
+    // moved origin and the fact that we're in drawing space (+y = down).
+    second_point.SetPoint(half_width + end_x, half_height - end_y);
+    // Reflect around the center for the start point.
+    first_point.SetPoint(half_width - end_x, half_height + end_y);
     return CGSizeMake(cos(angleRad) * length, sin(angleRad) * length);
 }
     
