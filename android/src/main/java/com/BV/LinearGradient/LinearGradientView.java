@@ -97,11 +97,39 @@ public class LinearGradientView extends View {
         drawGradient();
     }
 
-    private float[][] calculateGradientLocationWithAngle(float angle) {
+    // This method is adapted and ported from the Chromium implementation:
+    // https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/css/css_gradient_value.cc;l=883-952;drc=919811d4a39a74216d96d1f1c346efef3ef85e85
+    /*
+    * Copyright (C) 2008 Apple Inc.  All rights reserved.
+    * Copyright (C) 2015 Google Inc. All rights reserved.
+    *
+    * Redistribution and use in source and binary forms, with or without
+    * modification, are permitted provided that the following conditions
+    * are met:
+    * 1. Redistributions of source code must retain the above copyright
+    *    notice, this list of conditions and the following disclaimer.
+    * 2. Redistributions in binary form must reproduce the above copyright
+    *    notice, this list of conditions and the following disclaimer in the
+    *    documentation and/or other materials provided with the distribution.
+    *
+    * THIS SOFTWARE IS PROVIDED BY APPLE COMPUTER, INC. ``AS IS'' AND ANY
+    * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+    * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL APPLE COMPUTER, INC. OR
+    * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+    * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+    * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+    * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+    * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+    * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+    */
+    private float[][] endPointsFromAngle(float angle) {
         angle = angle % 360f;
         if (angle < 0f)
             angle += 360f;
 
+        // Avoid undefined slopes
         if (angle == 0f) {
             return new float[][] { 
                 new float[] { 0f, mSize[1] },
@@ -157,9 +185,7 @@ public class LinearGradientView extends View {
         float endX = c / (slope - perpendicularSlope);
         float endY = perpendicularSlope * endX + c;
 
-        // We computed the end point, so set the second point, taking into account the
-        // moved origin and the fact that we're in drawing space (+y = down).
-        // Reflect around the center for the start point.
+        // Translate the end point around the angle center, and relect across to get the start point
         float centerX = mAngleCenter[0] * mSize[0];
         float centerY = mAngleCenter[1] * mSize[1];
         return new float[][] {
@@ -177,7 +203,7 @@ public class LinearGradientView extends View {
         float[] endPos;
 
         if (mUseAngle && mAngleCenter != null) {
-            float[][] positions = calculateGradientLocationWithAngle(mAngle);
+            float[][] positions = endPointsFromAngle(mAngle);
             startPos = positions[0];
             endPos = positions[1];
         } else {
